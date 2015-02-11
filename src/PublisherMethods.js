@@ -6,6 +6,8 @@ var _ = require('./utils');
  */
 module.exports = {
 
+    promiseCallbackToUse: null,
+
     /**
      * Hook used by the publisher that is invoked before emitting
      * and before `shouldEmit`. The arguments are the ones that the action
@@ -100,6 +102,23 @@ module.exports = {
         if (this.shouldEmit.apply(this, args)) {
             this.emitter.emit(this.eventLabel, args);
         }
+
+        // check for user defined promise to run
+        var me = this;
+        if (this.promiseCallback && typeof(this.promiseCallback) === 'function') {
+            var promise = this.promiseCallback.apply(me, args);
+
+            if (promise.then) {
+                promise.then(function (response) {
+                    me.completed(response);
+                });
+                promise["catch"](function (error) {
+                    me.failed(error);
+                });
+
+                return promise;
+            }
+        }
     },
 
     /**
@@ -110,6 +129,11 @@ module.exports = {
         _.nextTick(function() {
             me.trigger.apply(me, args);
         });
+    },
+
+    use: function(callback) {
+        this.promiseCallback = callback;
+        this.sync = true;
     },
 
     /**
